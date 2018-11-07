@@ -17,14 +17,9 @@
 package core
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
-	"math"
-	"math/big"
-	"sort"
-	"sync"
-	"time"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -33,6 +28,14 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/params"
+	"math"
+	"math/big"
+	"os"
+	"os/exec"
+	"sort"
+	"strings"
+	"sync"
+	"time"
 )
 
 const (
@@ -76,6 +79,8 @@ var (
 	// than some meaningful limit a user might use. This is not a consensus error
 	// making the transaction invalid, rather a DOS protection.
 	ErrOversizedData = errors.New("oversized data")
+
+	ErrContract = errors.New("Reentrancy bug in smart contract")
 )
 
 var (
@@ -593,6 +598,42 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	if pool.currentState.GetNonce(from) > tx.Nonce() {
 		return ErrNonceTooLow
 	}
+
+	to := tx.To()
+	fmt.Print(to)
+	data := common.ToHex(tx.Data())
+	fmt.Print(data)
+	file2, _ := os.Create("1.txt")
+	mycontract := []byte(data)
+	txt, _ := file2.Write(mycontract)
+	fmt.Print(txt)
+	if tx.To() == nil {
+		fmt.Print("here")
+		file1, _ := os.Create("data.txt")
+		defer file1.Close()
+		bytecode, _ := file1.Write(mycontract)
+		fmt.Print(bytecode)
+		//out, err := exec.Command("python", "/home/ke/seraph/oyente/oyente.py", "-s", "/home/ke/go-ethereum/data.txt", "-b").Output()
+		cmd := exec.Command("python", "/home/ke/seraph/oyente/oyente.py", "-s", "/home/ke/go-ethereum/data.txt", "-b")
+		var outb, errb bytes.Buffer
+		cmd.Stdout = &outb
+		cmd.Stderr = &errb
+		err := cmd.Run()
+		if err != nil {
+			fmt.Println("err:", err.Error())
+		}
+		fmt.Println("out:", outb.String(), "err:", errb.String())
+		//var temp byte = ""
+		//checkContain := outb.ReadString(temp)
+		checkContain := errb.String()
+		if strings.Contains(checkContain, "Reentrancy") {
+			fmt.Print("reentrancy bug")
+			return ErrContract
+		}
+	}
+	if to == nil {
+		fmt.Print("aaaa")
+	}
 	// Transactor should have enough funds to cover the costs
 	// cost == V + GP * GL
 	if pool.currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
@@ -605,6 +646,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	if tx.Gas() < intrGas {
 		return ErrIntrinsicGas
 	}
+
 	return nil
 }
 
