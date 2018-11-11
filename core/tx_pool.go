@@ -599,40 +599,36 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		return ErrNonceTooLow
 	}
 
-	to := tx.To()
-	fmt.Print(to)
 	data := common.ToHex(tx.Data())
-	fmt.Print(data)
+	pos := strings.Index(data, "396000f300")
+	rundata := data[(pos + 10):]
 	file2, _ := os.Create("1.txt")
-	mycontract := []byte(data)
+	//fmt.Print(rundata)
+	mycontract := []byte(rundata)
 	txt, _ := file2.Write(mycontract)
 	fmt.Print(txt)
 	if tx.To() == nil {
-		fmt.Print("here")
+		//fmt.Print("here")
 		file1, _ := os.Create("data.txt")
 		defer file1.Close()
+		//mycontract0 := mycontract[2:len(mycontract)]
+		//fmt.Print(mycontract0)
 		bytecode, _ := file1.Write(mycontract)
 		fmt.Print(bytecode)
 		//out, err := exec.Command("python", "/home/ke/seraph/oyente/oyente.py", "-s", "/home/ke/go-ethereum/data.txt", "-b").Output()
-		cmd := exec.Command("python", "/home/ke/seraph/oyente/oyente.py", "-s", "/home/ke/go-ethereum/data.txt", "-b")
+		cmd := exec.Command("python", "/home/ke/new-seraph/oyente/oyente.py", "-s", "/home/ke/go-ethereum/data.txt", "-b")
 		var outb, errb bytes.Buffer
 		cmd.Stdout = &outb
 		cmd.Stderr = &errb
 		err := cmd.Run()
-		if err != nil {
-			fmt.Println("err:", err.Error())
-		}
-		fmt.Println("out:", outb.String(), "err:", errb.String())
+		fmt.Print(err)
+		fmt.Println("err:", errb.String())
 		//var temp byte = ""
 		//checkContain := outb.ReadString(temp)
 		checkContain := errb.String()
-		if strings.Contains(checkContain, "Reentrancy") {
-			fmt.Print("reentrancy bug")
-			return ErrContract
+		if strings.Contains(checkContain, "True") {
+			fmt.Print("Reentrancy/Prng Bug")
 		}
-	}
-	if to == nil {
-		fmt.Print("aaaa")
 	}
 	// Transactor should have enough funds to cover the costs
 	// cost == V + GP * GL
